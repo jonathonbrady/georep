@@ -4,6 +4,7 @@ import (
 	"flag"
 	"georep/geoguessr"
 	"georep/overpass"
+	"georep/streetview"
 	"log"
 	"math/rand/v2"
 	"os"
@@ -45,6 +46,11 @@ func main() {
 		log.Fatalf("creating overpass client: %v", err)
 	}
 
+	sv, err := streetview.NewStreetViewClient()
+	if err != nil {
+		log.Fatalf("creating google maps client: %v", err)
+	}
+
 	create := geoguessr.CreateMapRequest{
 		Mode: "coordinates",
 		Name: "does this work",
@@ -67,7 +73,17 @@ func main() {
 	})
 
 	locations := make([]geoguessr.Location, 0)
-	for _, latlong := range latlongs[:5] {
+	for _, latlong := range latlongs {
+		pass, err := sv.ValidateCoverage(latlong)
+		if err != nil {
+			log.Fatalf("validating coverage at %v: %v", latlong, err)
+		}
+
+		if !pass {
+			log.Printf("invalid coverage at %v\n", latlong)
+			continue
+		}
+		log.Printf("valid coverage at %v\n", latlong)
 
 		location := geoguessr.Location{
 			Heading:   0,
@@ -77,6 +93,14 @@ func main() {
 			Zoom:      0,
 		}
 		locations = append(locations, location)
+
+		if len(locations) == 5 {
+			break
+		}
+	}
+
+	if len(locations) != 5 {
+		log.Fatalf("failed to find 5 locations")
 	}
 
 	update := geoguessr.UpdateMapRequest{
