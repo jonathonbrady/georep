@@ -7,7 +7,6 @@ import (
 	"georep/streetview"
 	"log"
 	"math/rand/v2"
-	"os"
 
 	"github.com/joho/godotenv"
 )
@@ -15,7 +14,7 @@ import (
 func main() {
 	var (
 		country string
-		road string
+		road    string
 	)
 
 	flag.StringVar(&country, "country", "", "country containing the road")
@@ -31,12 +30,7 @@ func main() {
 		log.Fatalf("loading .env file: %v", err)
 	}
 
-	nfca, ok := os.LookupEnv("NFCA_COOKIE")
-	if !ok {
-		log.Fatal("nfca cookie environment variable not set")
-	}
-
-	gc, err := geoguessr.NewGeoguessrClient(nfca)
+	gc, err := geoguessr.NewGeoguessrClient()
 	if err != nil {
 		log.Fatalf("creating geoguessr client: %v", err)
 	}
@@ -87,8 +81,8 @@ func main() {
 
 		location := geoguessr.Location{
 			Heading:   0,
-			Latitude:  latlong[0],
-			Longitude: latlong[1],
+			Latitude:  latlong.Latitude,
+			Longitude: latlong.Longitude,
 			Pitch:     0,
 			Zoom:      0,
 		}
@@ -132,11 +126,11 @@ func main() {
 
 	challenge := geoguessr.CreateChallengeRequest{
 		AccessLevel: 1,
-		NoMoving: true,
-		NoPanning: false,
-		NoZooming: false,
-		Map: mapId,
-		TimeLimit: 0,
+		NoMoving:    true,
+		NoPanning:   false,
+		NoZooming:   false,
+		Map:         mapId,
+		TimeLimit:   0,
 	}
 	link, err := gc.CreateChallenge(challenge)
 	if err != nil {

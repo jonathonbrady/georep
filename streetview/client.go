@@ -3,26 +3,11 @@ package streetview
 import (
 	"encoding/json"
 	"fmt"
+	"georep/overpass"
 	"io"
 	"net/http"
 	"os"
 )
-
-type StreetViewClient struct {
-	Client *http.Client
-	Auth   string
-}
-
-type GetMetadataResponse struct {
-	Copyright string `json:"copyright"`
-	Date      string `json:"date"`
-	Location  struct {
-		Lat  float64 `json:"lat"`
-		Long float64 `json:"lng"`
-	} `json:"location"`
-	PanoId string `json:"pano_id"`
-	Status string `json:"status"`
-}
 
 func NewStreetViewClient() (*StreetViewClient, error) {
 	key, ok := os.LookupEnv("GOOGLE_MAPS_API_KEY")
@@ -37,8 +22,8 @@ func NewStreetViewClient() (*StreetViewClient, error) {
 }
 
 // Locations should not be selected where there is no official Google Street View coverage.
-func (gc *StreetViewClient) ValidateCoverage(latlong [2]float64) (bool, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://maps.googleapis.com/maps/api/streetview/metadata?location=%f,%%20%f&key=%s", latlong[0], latlong[1], gc.Auth), http.NoBody)
+func (gc *StreetViewClient) ValidateCoverage(latlong overpass.Latlong) (bool, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://maps.googleapis.com/maps/api/streetview/metadata?location=%f,%%20%f&key=%s", latlong.Latitude, latlong.Longitude, gc.Auth), http.NoBody)
 	if err != nil {
 		return false, fmt.Errorf("creating request: %v", err)
 	}
