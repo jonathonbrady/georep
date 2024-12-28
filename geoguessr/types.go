@@ -36,6 +36,15 @@ type CreateMapResponse struct {
 }
 
 // Fabricated
+type DeleteMapRequest struct {
+	Id string
+}
+
+type DeleteMapResponse struct {
+	Deleted bool `json:"deleted"`
+}
+
+// Fabricated
 type GetChallengeResultsRequest struct {
 	Id string
 }
@@ -180,6 +189,123 @@ type GetChallengeResultsResponse struct {
 		} `json:"game"`
 	} `json:"items"`
 	PaginationToken string `json:"paginationToken"`
+}
+
+type Map struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Slug        string `json:"slug"`
+	Description any    `json:"description"`
+	URL         string `json:"url"`
+	PlayURL     string `json:"playUrl"`
+	Published   bool   `json:"published"`
+	Banned      bool   `json:"banned"`
+	Images      struct {
+		BackgroundLarge any  `json:"backgroundLarge"`
+		Incomplete      bool `json:"incomplete"`
+	} `json:"images"`
+	Bounds struct {
+		Min struct {
+			Lat float64 `json:"lat"`
+			Lng float64 `json:"lng"`
+		} `json:"min"`
+		Max struct {
+			Lat float64 `json:"lat"`
+			Lng float64 `json:"lng"`
+		} `json:"max"`
+	} `json:"bounds"`
+	CustomCoordinates any    `json:"customCoordinates"`
+	CoordinateCount   string `json:"coordinateCount"`
+	Regions           any    `json:"regions"`
+	Creator           struct {
+		Nick          string    `json:"nick"`
+		Created       time.Time `json:"created"`
+		IsProUser     bool      `json:"isProUser"`
+		Type          string    `json:"type"`
+		ConsumedTrial bool      `json:"consumedTrial"`
+		IsVerified    bool      `json:"isVerified"`
+		Pin           struct {
+			URL       string `json:"url"`
+			Anchor    string `json:"anchor"`
+			IsDefault bool   `json:"isDefault"`
+		} `json:"pin"`
+		FullBodyPin string `json:"fullBodyPin"`
+		Color       int    `json:"color"`
+		URL         string `json:"url"`
+		ID          string `json:"id"`
+		CountryCode string `json:"countryCode"`
+		Br          struct {
+			Level    int `json:"level"`
+			Division int `json:"division"`
+		} `json:"br"`
+		StreakProgress         any `json:"streakProgress"`
+		ExplorerProgress       any `json:"explorerProgress"`
+		DailyChallengeProgress int `json:"dailyChallengeProgress"`
+		Progress               struct {
+			Xp          int `json:"xp"`
+			Level       int `json:"level"`
+			LevelXp     int `json:"levelXp"`
+			NextLevel   int `json:"nextLevel"`
+			NextLevelXp int `json:"nextLevelXp"`
+			Title       struct {
+				ID     int `json:"id"`
+				TierID int `json:"tierId"`
+			} `json:"title"`
+			CompetitionMedals struct {
+				Bronze   int `json:"bronze"`
+				Silver   int `json:"silver"`
+				Gold     int `json:"gold"`
+				Platinum int `json:"platinum"`
+			} `json:"competitionMedals"`
+		} `json:"progress"`
+		Competitive struct {
+			Elo              int `json:"elo"`
+			Rating           int `json:"rating"`
+			LastRatingChange int `json:"lastRatingChange"`
+			Division         struct {
+				Type        int `json:"type"`
+				StartRating int `json:"startRating"`
+				EndRating   int `json:"endRating"`
+			} `json:"division"`
+			OnLeaderboard bool `json:"onLeaderboard"`
+		} `json:"competitive"`
+		LastNameChange          time.Time `json:"lastNameChange"`
+		LastNickOrCountryChange time.Time `json:"lastNickOrCountryChange"`
+		IsBanned                bool      `json:"isBanned"`
+		ChatBan                 bool      `json:"chatBan"`
+		NameChangeAvailableAt   any       `json:"nameChangeAvailableAt"`
+		Avatar                  struct {
+			FullBodyPath string `json:"fullBodyPath"`
+		} `json:"avatar"`
+		IsBotUser      bool `json:"isBotUser"`
+		SuspendedUntil any  `json:"suspendedUntil"`
+		Wallet         any  `json:"wallet"`
+		Flair          int  `json:"flair"`
+		IsCreator      bool `json:"isCreator"`
+		IsAppAnonymous bool `json:"isAppAnonymous"`
+	} `json:"creator"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+	NumFinishedGames int       `json:"numFinishedGames"`
+	LikedByUser      any       `json:"likedByUser"`
+	AverageScore     int       `json:"averageScore"`
+	Avatar           struct {
+		Background string `json:"background"`
+		Decoration string `json:"decoration"`
+		Ground     string `json:"ground"`
+		Landscape  string `json:"landscape"`
+	} `json:"avatar"`
+	Difficulty            string `json:"difficulty"`
+	DifficultyLevel       int    `json:"difficultyLevel"`
+	Highscore             any    `json:"highscore"`
+	IsUserMap             bool   `json:"isUserMap"`
+	Highlighted           bool   `json:"highlighted"`
+	Free                  bool   `json:"free"`
+	PanoramaProvider      string `json:"panoramaProvider"`
+	InExplorerMode        bool   `json:"inExplorerMode"`
+	MaxErrorDistance      int    `json:"maxErrorDistance"`
+	Likes                 int    `json:"likes"`
+	LocationSelectionMode int    `json:"locationSelectionMode"`
 }
 
 // Fabricated

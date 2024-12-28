@@ -2,11 +2,14 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"georep/geoguessr"
 	"georep/overpass"
 	"georep/streetview"
 	"log"
 	"math/rand/v2"
+	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -15,14 +18,16 @@ func main() {
 	var (
 		country string
 		road    string
+		user    string
 	)
 
 	flag.StringVar(&country, "country", "", "country containing the road")
 	flag.StringVar(&road, "road", "", "road within the country")
+	flag.StringVar(&user, "user", "", "user id")
 
 	flag.Parse()
-	if country == "" || road == "" {
-		log.Fatalf("country and road must be specified")
+	if country == "" || road == "" || user == "" {
+		log.Fatalf("country, road, and user must be specified")
 	}
 
 	err := godotenv.Load()
@@ -45,9 +50,17 @@ func main() {
 		log.Fatalf("creating google maps client: %v", err)
 	}
 
+	err = deleteOldMaps(gc, time.Duration(24 * time.Hour))
+	if err != nil {
+		log.Fatalf("deleting old maps: %v", err)
+	}
+
+	date := strings.Split(time.Now().Format(time.RFC3339), "T")[0]
+	mapName := fmt.Sprintf("%s - %s", user, date)
+
 	create := geoguessr.CreateMapRequest{
 		Mode: "coordinates",
-		Name: "does this work",
+		Name: mapName,
 	}
 	mapId, err := gc.CreateMap(create)
 	if err != nil {
@@ -57,6 +70,10 @@ func main() {
 
 	latlongs, err := op.GetLocationsOnRoad(country, road)
 	if err != nil {
+		delete := geoguessr.DeleteMapRequest{
+			Id: mapId,
+		}
+		gc.DeleteMap(delete)
 		log.Fatalf("retrieving locations on %s in %s: %v\n", road, country, err)
 	}
 	log.Printf("retrieved locations on %s in %s\n", road, country)
@@ -70,6 +87,10 @@ func main() {
 	for _, latlong := range latlongs {
 		pass, err := sv.ValidateCoverage(latlong)
 		if err != nil {
+			delete := geoguessr.DeleteMapRequest{
+				Id: mapId,
+			}
+			gc.DeleteMap(delete)
 			log.Fatalf("validating coverage at %v: %v", latlong, err)
 		}
 
@@ -94,6 +115,10 @@ func main() {
 	}
 
 	if len(locations) != 5 {
+		delete := geoguessr.DeleteMapRequest{
+			Id: mapId,
+		}
+		gc.DeleteMap(delete)
 		log.Fatalf("failed to find 5 locations")
 	}
 
@@ -106,12 +131,16 @@ func main() {
 		},
 		Locations:   locations,
 		Description: "",
-		Name:        "does this work",
+		Name:        mapName,
 		Regions:     []geoguessr.Region{},
 	}
 
 	err = gc.UpdateMap(update, mapId)
 	if err != nil {
+		delete := geoguessr.DeleteMapRequest{
+			Id: mapId,
+		}
+		gc.DeleteMap(delete)
 		log.Fatalf("updating map %s: %v", mapId, err)
 	}
 	log.Printf("updated map %s with locations\n", mapId)
@@ -121,6 +150,10 @@ func main() {
 	}
 	err = gc.PublishMap(publish)
 	if err != nil {
+		delete := geoguessr.DeleteMapRequest{
+			Id: mapId,
+		}
+		gc.DeleteMap(delete)
 		log.Fatalf("publishing map %s: %v", mapId, err)
 	}
 
@@ -134,7 +167,33 @@ func main() {
 	}
 	link, err := gc.CreateChallenge(challenge)
 	if err != nil {
+		delete := geoguessr.DeleteMapRequest{
+			Id: mapId,
+		}
+		gc.DeleteMap(delete)
 		log.Fatalf("creating challenge for map %s: %v", mapId, err)
 	}
 	log.Println(link)
+}
+
+func deleteOldMaps(gc *geoguessr.GeoguessrClient, d time.Duration) error {
+	maps, err := gc.ListMaps()
+	if err != nil {
+		return fmt.Errorf("listing maps: %v", err)
+	}
+
+	for _, m := range maps {
+		if time.Now().Add(-d).After(m.CreatedAt) {
+			delete := geoguessr.DeleteMapRequest{
+				Id: m.ID,
+			}
+			err = gc.DeleteMap(delete)
+			if err != nil {
+				return fmt.Errorf("deleting map %s: %v", m.ID, err)
+			}
+		}
+	}
+
+	log.Printf("deleted %d maps\n", len(maps))
+	return nil
 }

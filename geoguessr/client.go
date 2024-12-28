@@ -115,6 +115,40 @@ func (gc *GeoguessrClient) CreateMap(request CreateMapRequest) (string, error) {
 	return response.Id, nil
 }
 
+func (gc *GeoguessrClient) DeleteMap(request DeleteMapRequest) error {
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("https://www.geoguessr.com/api/v4/user-maps/%s", request.Id), http.NoBody)
+	if err != nil {
+		return fmt.Errorf("creating request: %v", err)
+	}
+
+	resp, err := gc.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("executing request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status from user-maps API: %v", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("reading response body: %v", err)
+	}
+
+	var response DeleteMapResponse
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return fmt.Errorf("unmarshaling response body: %v", err)
+	}
+
+	if !response.Deleted {
+		return fmt.Errorf("failed to delete map")
+	}
+
+	return nil
+}
+
 func (gc *GeoguessrClient) GetChallengeResults(request GetChallengeResultsRequest) (*GetChallengeResultsResponse, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://www.geoguessr.com/api/v3/results/highscores/%s", request.Id), http.NoBody)
 	if err != nil {
@@ -140,6 +174,36 @@ func (gc *GeoguessrClient) GetChallengeResults(request GetChallengeResultsReques
 	err = json.Unmarshal(body, response)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshaling response body: %v", err)
+	}
+
+	return response, nil
+}
+
+func (gc *GeoguessrClient) ListMaps() ([]Map, error) {
+	req, err := http.NewRequest("GET", "https://www.geoguessr.com/api/v4/user-maps/maps", http.NoBody)
+	if err != nil {
+		return []Map{}, fmt.Errorf("creating request: %v", err)
+	}
+
+	resp, err := gc.client.Do(req)
+	if err != nil {
+		return []Map{}, fmt.Errorf("executing request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []Map{}, fmt.Errorf("bad status from user-maps API: %v", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return []Map{}, fmt.Errorf("reading response body: %v", err)
+	}
+
+	var response []Map
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return []Map{}, fmt.Errorf("unmarshaling response body: %v", err)
 	}
 
 	return response, nil
