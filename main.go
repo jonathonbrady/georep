@@ -1,13 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"georep/data"
 	"georep/geoguessr"
-	"georep/overpass"
-	"georep/streetview"
+	"georep/googlemaps"
 	"log"
-	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -16,18 +16,23 @@ import (
 
 func main() {
 	var (
-		country string
-		road    string
-		user    string
+		country     string
+		road        string
+		subdivision string
+		user        string
 	)
 
 	flag.StringVar(&country, "country", "", "country containing the road")
 	flag.StringVar(&road, "road", "", "road within the country")
+	flag.StringVar(&subdivision, "subdivision", "", "first-order subdivision within the country")
 	flag.StringVar(&user, "user", "", "user id")
 
 	flag.Parse()
-	if country == "" || road == "" || user == "" {
-		log.Fatalf("country, road, and user must be specified")
+	if country == "" || user == "" {
+		log.Fatalf("country and user must be specified")
+	}
+	if (road == "") == (subdivision == "") {
+		log.Fatalf("either a road or first-order subdivision must be specified, but not both")
 	}
 
 	err := godotenv.Load()
@@ -40,17 +45,18 @@ func main() {
 		log.Fatalf("creating geoguessr client: %v", err)
 	}
 
-	op, err := overpass.NewOverpassClient()
-	if err != nil {
-		log.Fatalf("creating overpass client: %v", err)
-	}
+	// TODO: Obsolete?
+	// op, err := overpass.NewOverpassClient()
+	// if err != nil {
+	// 	log.Fatalf("creating overpass client: %v", err)
+	// }
 
-	sv, err := streetview.NewStreetViewClient()
+	sv, err := googlemaps.NewGoogleMapsClient()
 	if err != nil {
 		log.Fatalf("creating google maps client: %v", err)
 	}
 
-	err = deleteOldMaps(gc, time.Duration(24 * time.Hour))
+	err = deleteOldMaps(gc /* time.Duration(24 * time.Hour) */)
 	if err != nil {
 		log.Fatalf("deleting old maps: %v", err)
 	}
@@ -68,49 +74,14 @@ func main() {
 	}
 	log.Printf(`created new map "%s" with id %s`, create.Name, mapId)
 
-	latlongs, err := op.GetLocationsOnRoad(country, road)
-	if err != nil {
-		delete := geoguessr.DeleteMapRequest{
-			Id: mapId,
-		}
-		gc.DeleteMap(delete)
-		log.Fatalf("retrieving locations on %s in %s: %v\n", road, country, err)
-	}
-	log.Printf("retrieved locations on %s in %s\n", road, country)
-
-	// TODO: Double check the distribution on this. It might skew towards the start/end of the road.
-	rand.Shuffle(len(latlongs), func(i, j int) {
-		latlongs[i], latlongs[j] = latlongs[j], latlongs[i]
-	})
-
-	locations := make([]geoguessr.Location, 0)
-	for _, latlong := range latlongs {
-		pass, err := sv.ValidateCoverage(latlong)
+	locations := make([][2]float64, 0)
+	if road != "" {
+		// TODO: Use Google Directions API to get a polyline.
+		// locations = generateLocationsOnRoad()
+	} else {
+		locations, err = data.GetLocationsInSubdivision(country, subdivision, 5, sv)
 		if err != nil {
-			delete := geoguessr.DeleteMapRequest{
-				Id: mapId,
-			}
-			gc.DeleteMap(delete)
-			log.Fatalf("validating coverage at %v: %v", latlong, err)
-		}
-
-		if !pass {
-			log.Printf("invalid coverage at %v\n", latlong)
-			continue
-		}
-		log.Printf("valid coverage at %v\n", latlong)
-
-		location := geoguessr.Location{
-			Heading:   0,
-			Latitude:  latlong.Latitude,
-			Longitude: latlong.Longitude,
-			Pitch:     0,
-			Zoom:      0,
-		}
-		locations = append(locations, location)
-
-		if len(locations) == 5 {
-			break
+			log.Fatalf("getting locations in %v, %v: %v", subdivision, country, err)
 		}
 	}
 
@@ -122,6 +93,18 @@ func main() {
 		log.Fatalf("failed to find 5 locations")
 	}
 
+	geoLocations := make([]geoguessr.Location, 0)
+	for _, location := range locations {
+		geoLocation := geoguessr.Location{
+			Heading:   0,
+			Latitude:  location[0],
+			Longitude: location[1],
+			Pitch:     0,
+			Zoom:      0,
+		}
+		geoLocations = append(geoLocations, geoLocation)
+	}
+
 	update := geoguessr.UpdateMapRequest{
 		Avatar: geoguessr.Avatar{
 			Background: "day",
@@ -129,7 +112,7 @@ func main() {
 			Ground:     "green",
 			Landscape:  "mountains",
 		},
-		Locations:   locations,
+		Locations:   geoLocations,
 		Description: "",
 		Name:        mapName,
 		Regions:     []geoguessr.Region{},
@@ -174,26 +157,36 @@ func main() {
 		log.Fatalf("creating challenge for map %s: %v", mapId, err)
 	}
 	log.Println(link)
+
+	calls := 0
+	for _, n := range sv.APICalls {
+		calls += n
+	}
+	fmt.Printf("used %d Google Maps API calls\n", calls)
+	s, _ := json.MarshalIndent(sv.APICalls, "", "\t")
+	fmt.Print(string(s))
 }
 
-func deleteOldMaps(gc *geoguessr.GeoguessrClient, d time.Duration) error {
+func deleteOldMaps(gc *geoguessr.GeoguessrClient /* d time.Duration */) error {
 	maps, err := gc.ListMaps()
 	if err != nil {
 		return fmt.Errorf("listing maps: %v", err)
 	}
 
+	deleted := 0
 	for _, m := range maps {
-		if time.Now().Add(-d).After(m.CreatedAt) {
-			delete := geoguessr.DeleteMapRequest{
-				Id: m.ID,
-			}
-			err = gc.DeleteMap(delete)
-			if err != nil {
-				return fmt.Errorf("deleting map %s: %v", m.ID, err)
-			}
+		// if time.Now().Add(-d).After(m.CreatedAt) {
+		delete := geoguessr.DeleteMapRequest{
+			Id: m.ID,
 		}
+		err = gc.DeleteMap(delete)
+		if err != nil {
+			return fmt.Errorf("deleting map %s: %v", m.ID, err)
+		}
+		deleted++
+		// }
 	}
 
-	log.Printf("deleted %d maps\n", len(maps))
+	log.Printf("deleted %d maps\n", deleted)
 	return nil
 }
