@@ -26,25 +26,36 @@ func generateRandomLocationsInSubdivision(country string, subdivision string) ([
 
 	for _, feature := range subdivisions.Features {
 		if country == feature.Properties.Admin && subdivision == feature.Properties.NameEn {
+			var polygons [][][2]float64
 			if feature.Geometry.Type == "Polygon" {
-				var coordinates [][][2]float64
-				if err = json.Unmarshal(feature.Geometry.Coordinates, &coordinates); err != nil {
+				if err = json.Unmarshal(feature.Geometry.Coordinates, &polygons); err != nil {
+					return NO_LOCATIONS, err
+				}
+			} else if feature.Geometry.Type == "MultiPolygon" {
+				var multi [][][][2]float64
+				if err = json.Unmarshal(feature.Geometry.Coordinates, &multi); err != nil {
 					return NO_LOCATIONS, err
 				}
 
-				// The GeoJSON is (long, lat) instead of (lat, long). Why?
-				actual := make([][2]float64, 0)
-				for _, coordinate := range coordinates[0] {
+				for _, polygon := range multi {
+					polygons = append(polygons, polygon...)
+				}
+			}
+
+			// The GeoJSON is (long, lat) instead of (lat, long). Why?
+			actual := make([][2]float64, 0)
+			for _, polygon := range polygons {
+				for _, coordinate := range polygon {
 					actual = append(actual, [2]float64{coordinate[1], coordinate[0]})
 				}
-
-				locations := make([][2]float64, 0)
-				for i := 0; i < 100; i++ {
-					location := getRandomPointInPolygon(actual)
-					locations = append(locations, location)
-				}
-				return locations, nil
 			}
+
+			locations := make([][2]float64, 0)
+			for i := 0; i < 100; i++ {
+				location := getRandomPointInPolygon(actual)
+				locations = append(locations, location)
+			}
+			return locations, nil
 		}
 	}
 
@@ -115,7 +126,7 @@ func GetLocationsInSubdivision(country string, subdivision string, count int, sv
 
 		// Snapping will fail for locations that are over 300 meters away from a road, but at least
 		// one should work since our sample size is large.
-		snappedLocations, err := sv.SnapToRoads(randomLocations)
+		snappedLocations, err := sv.NearestRoads(randomLocations)
 		if err != nil {
 			return [][2]float64{}, err
 		}
@@ -136,6 +147,8 @@ func GetLocationsInSubdivision(country string, subdivision string, count int, sv
 			uniqueLocations = append(uniqueLocations, location)
 			set[location] = true
 		}
+
+		fmt.Printf("found %d snapped locations\n", len(uniqueLocations))
 
 		// There is no guarantee that valid Google Street View coverage exists at the snapped location.
 		for _, location := range uniqueLocations {
